@@ -1,0 +1,20 @@
+schema: autonomy.qas/v1
+branch:
+  requireCleanWorktree: true
+  requireUpToDateWithDefaultBranch: true
+  requireIssueBranchPattern: issue/<number>-<slug>
+selfReview:
+  required: true
+  independentFromImplementation: true
+  maximumCriticalFindings: 0
+governance:
+  protectedPaths:
+    - AUTONOMY.md
+    - .autonomy/**
+    - .github/workflows/**
+    - .github/CODEOWNERS
+merge:
+  pullRequestRequired: true
+  requireAllLocalAndGithubGates: true
+  deleteFeatureBranchAfterDelivery: true
+

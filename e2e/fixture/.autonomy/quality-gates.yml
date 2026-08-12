@@ -1,0 +1,11 @@
+schema: autonomy.qas/v1
+selfReview:
+  required: true
+  independentFromImplementation: true
+  maximumCriticalFindings: 0
+governance:
+  protectedPaths: [AUTONOMY.md, .autonomy/**, .github/workflows/**, .github/CODEOWNERS]
+merge:
+  pullRequestRequired: true
+  requireAllLocalAndGithubGates: true
+

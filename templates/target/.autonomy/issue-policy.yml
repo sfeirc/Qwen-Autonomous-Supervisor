@@ -1,0 +1,14 @@
+schema: autonomy.qas/v1
+maximumActiveIssues: 1
+trustedExecutionAuthor: replace-with-bot-login
+sources:
+  - source:user
+  - source:community
+  - source:self-discovery
+selfDiscovery:
+  requiresReproduction: true
+  requiresMinimalScenario: true
+failurePolicy:
+  identicalAttemptsBeforeQuarantine: 3
+  quarantineLabel: autonomous:quarantined
+

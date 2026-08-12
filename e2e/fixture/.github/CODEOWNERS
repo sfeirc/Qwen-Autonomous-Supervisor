@@ -1,0 +1,5 @@
+/AUTONOMY.md @replace-with-maintainer
+/.autonomy/ @replace-with-maintainer
+/.github/workflows/ @replace-with-maintainer
+/.github/CODEOWNERS @replace-with-maintainer
+

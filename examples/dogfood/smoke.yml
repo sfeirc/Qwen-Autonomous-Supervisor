@@ -1,0 +1,6 @@
+name: repository_is_healthy
+steps:
+  - command: [git, status, --short]
+    expectExitCode: 0
+    timeoutSeconds: 30
+

@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["state", "action", "summary", "mutation", "requires_review"],
+  "properties": {
+    "state": {
+      "type": "string",
+      "enum": ["idle", "triaging", "researching", "dogfooding", "issue_selected", "planning", "implementing", "verifying", "pr_open", "waiting_ci", "merging", "post_merge", "waiting", "blocked", "failed"]
+    },
+    "action": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 4000 },
+    "mutation": { "type": "boolean" },
+    "requires_review": { "type": "boolean" },
+    "issue_number": { "type": ["integer", "null"], "minimum": 1 },
+    "base_sha": { "type": ["string", "null"], "pattern": "^[0-9a-f]{7,64}$" },
+    "head_sha": { "type": ["string", "null"], "pattern": "^[0-9a-f]{7,64}$" }
+  }
+}
+

@@ -1,0 +1,24 @@
+[Unit]
+Description=Qwen Autonomous Supervisor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=qas
+Group=qas
+WorkingDirectory=/opt/qas
+Environment=QAS_CONFIG=/etc/qas/supervisor.yml
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/qas/.venv/bin/qas loop
+Restart=on-failure
+RestartSec=15
+TimeoutStopSec=45
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/qas /srv/target-project
+
+[Install]
+WantedBy=multi-user.target
+

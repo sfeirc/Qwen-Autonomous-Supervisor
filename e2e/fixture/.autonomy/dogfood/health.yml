@@ -1,0 +1,9 @@
+name: health_endpoint_returns_200
+steps:
+  - command:
+      - python
+      - -c
+      - "from tinyapp import health; code, body = health(); assert code == 200 and body['status'] == 'ok'"
+    expectExitCode: 0
+    timeoutSeconds: 30
+

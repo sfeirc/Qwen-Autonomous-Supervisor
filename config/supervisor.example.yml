@@ -1,0 +1,100 @@
+schema: qas/v1
+projectRoot: ../target-project
+runtimeDir: ./runtime
+
+qwen:
+  binary: qwen
+  model: claude-sonnet-5
+  approvalMode: auto
+  sandbox: true
+  # The outer scheduler owns bounded backoff; disable unbounded in-process retries.
+  persistentRetry: false
+  maxWallTime: 90m
+  maxToolCalls: 300
+  maxSessionTurns: 120
+  maxOutputTokens: 8192
+  # Trust the host OS certificate store without disabling TLS verification.
+  useSystemCertificateStore: true
+  excludeTools: []
+  # Only these host variables reach the model process. Add provider-specific
+  # names here if your authentication uses a custom variable.
+  environmentAllowlist:
+    - PATH
+    - HOME
+    - USERPROFILE
+    - TEMP
+    - TMP
+    - APPDATA
+    - LOCALAPPDATA
+    - SYSTEMROOT
+    - COMSPEC
+    - PATHEXT
+    - LANG
+    - QWEN_*
+    - DASHSCOPE_*
+    - OPENAI_*
+    - ANTHROPIC_*
+    - GH_TOKEN
+    - GITHUB_TOKEN
+    - HTTPS_PROXY
+    - HTTP_PROXY
+    - NO_PROXY
+
+scheduler:
+  loopMinutes: 30
+  leaseSeconds: 600
+  heartbeatSeconds: 15
+  silenceTimeoutSeconds: 600
+  shutdownGraceSeconds: 20
+
+recovery:
+  maximumIdenticalFailures: 3
+  retryBaseSeconds: 30
+  retryMaximumSeconds: 1800
+
+review:
+  enabled: true
+  model: claude-sonnet-5
+  maxWallTime: 20m
+  # Qwen internally calls read-only get_goal once before structured_output.
+  maxToolCalls: 1
+  maximumCriticalFindings: 0
+
+governance:
+  protectedPaths:
+    - AUTONOMY.md
+    - .autonomy/**
+    - .github/workflows/**
+    - .github/CODEOWNERS
+
+qualityGates:
+  - name: tests
+    command: [python, -m, pytest, -q]
+    timeoutSeconds: 900
+
+dogfood:
+  scenariosDirectory: .autonomy/dogfood
+
+observability:
+  host: 127.0.0.1
+  port: 8787
+  # Optional provider pricing, used only for estimated cost metrics.
+  inputCostPerMillion: 3
+  outputCostPerMillion: 15
+
+budgets:
+  maxTokensPerTick: 150000
+  maxTokensPerHour: 400000
+  maxTokensPerDay: 1000000
+  maxTokensPerIssue: 300000
+  maxCostPerTick: 2
+  maxCostPerHour: 5
+  maxCostPerDay: 15
+  maxCostPerIssue: 5
+
+storage:
+  minimumFreeBytes: 1073741824
+  maxLogBytes: 52428800
+  logBackupCount: 3
+  artifactRetentionDays: 30
+  maximumArtifacts: 1000

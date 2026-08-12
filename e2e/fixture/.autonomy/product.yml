@@ -1,0 +1,20 @@
+schema: autonomy.qas/v1
+product:
+  name: autonomous-supervisor-e2e-test
+  type: python-library
+repository:
+  defaultBranch: main
+  mergeStrategy: merge
+commands:
+  install: python -m pip install -e . pytest
+  build: python -m compileall -q src
+  typecheck: python -m compileall -q src
+  unit: python -m pytest -q
+  integration: python -m pytest -q
+  smoke: python -c "from tinyapp import add; assert add(20, 22) == 42"
+limits:
+  tickMinutes: 15
+  commitsMin: 1
+  commitsMax: 2
+  loopMinutes: 1
+

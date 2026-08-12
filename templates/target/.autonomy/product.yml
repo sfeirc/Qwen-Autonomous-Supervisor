@@ -1,0 +1,20 @@
+schema: autonomy.qas/v1
+product:
+  name: replace-me
+  type: application
+repository:
+  defaultBranch: main
+  mergeStrategy: merge
+commands:
+  install: replace-me
+  build: replace-me
+  typecheck: replace-me
+  unit: replace-me
+  integration: replace-me
+  smoke: replace-me
+limits:
+  tickMinutes: 90
+  commitsMin: 1
+  commitsMax: 3
+  loopMinutes: 30
+
