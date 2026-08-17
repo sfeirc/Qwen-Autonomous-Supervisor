@@ -1,6 +1,6 @@
 # Qwen Autonomous Supervisor
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 ![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)
 
 A durable host supervisor that keeps **Qwen Code** operating in bounded,
