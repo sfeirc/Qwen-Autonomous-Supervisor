@@ -1,5 +1,8 @@
 # Qwen Autonomous Supervisor
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue.svg)
+
 A durable host supervisor that keeps **Qwen Code** operating in bounded,
 recoverable autonomy ticks without treating an LLM conversation as the source
 of truth.
@@ -8,6 +11,10 @@ The supervisor does not reimplement a coding agent. Qwen Code still reads,
 edits, tests and uses Git/GitHub. This project owns the operational reliability
 layer around it: scheduling, exclusivity, watchdogs, durable evidence, recovery,
 quality gates, independent review, quarantine and health reporting.
+
+## Why this matters across industries
+
+Making an autonomous LLM-driven process safe to leave running unattended — durable state instead of trusting the conversation, exclusivity locks, watchdogs, and independent quality gates before anything ships — is the exact operational-reliability problem every organization deploying agentic AI now faces, regardless of what the agent itself does. That makes this directly relevant to tech/AI (agent infrastructure generally), to consulting (clients adopting AI agents need exactly this kind of safety harness, not just a demo), and to any regulated or safety-conscious environment (finance, industrial operations) where an autonomous process's failure mode has to be bounded and recoverable, not "hope the model behaves."
 
 ## Safety model
 
