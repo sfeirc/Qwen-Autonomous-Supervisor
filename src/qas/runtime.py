@@ -67,7 +67,7 @@ def process_lock(path: Path) -> Iterator[None]:
                 import msvcrt
 
                 handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)  # type: ignore[attr-defined]
             else:
                 fcntl: Any = importlib.import_module("fcntl")
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -80,7 +80,7 @@ def process_lock(path: Path) -> Iterator[None]:
                 import msvcrt
 
                 handle.seek(0)
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)  # type: ignore[attr-defined]
             else:
                 fcntl = importlib.import_module("fcntl")
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

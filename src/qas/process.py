@@ -31,7 +31,7 @@ def _terminate_tree(process: subprocess.Popen[str], grace_seconds: int) -> None:
         return
     if os.name == "nt":
         try:
-            process.send_signal(signal.CTRL_BREAK_EVENT)
+            process.send_signal(signal.CTRL_BREAK_EVENT)  # type: ignore[attr-defined]
         except OSError:
             process.terminate()
     else:
@@ -155,7 +155,7 @@ def run_process(
     output_path.parent.mkdir(parents=True, exist_ok=True)
     started_text = utc_now()
     started = time.monotonic()
-    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0
+    creationflags = subprocess.CREATE_NEW_PROCESS_GROUP if os.name == "nt" else 0  # type: ignore[attr-defined]
     process = subprocess.Popen(
         list(argv),
         cwd=cwd,
