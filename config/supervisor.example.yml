@@ -15,6 +15,10 @@ qwen:
   maxOutputTokens: 8192
   # Trust the host OS certificate store without disabling TLS verification.
   useSystemCertificateStore: true
+  # Optional. One of: low, medium, high, xhigh, max. Written into the target
+  # project's .qwen/settings.json as model.reasoningEffort before each
+  # coordinator tick. Unset by default (no file written, no behavior change).
+  # reasoningEffort: xhigh
   excludeTools: []
   # Only these host variables reach the model process. Add provider-specific
   # names here if your authentication uses a custom variable.

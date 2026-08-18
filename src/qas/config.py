@@ -25,6 +25,7 @@ class QwenConfig:
     max_session_turns: int = 120
     max_output_tokens: int = 8192
     use_system_certificate_store: bool = False
+    reasoning_effort: str | None = None
     exclude_tools: tuple[str, ...] = ()
     environment_allowlist: tuple[str, ...] = (
         "PATH",
@@ -147,6 +148,11 @@ class SupervisorConfig:
 _ENV = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)(?::-([^}]*))?\}")
 _DURATION = re.compile(r"^(?:\d+(?:\.\d+)?|\.\d+)[smh]?$", re.IGNORECASE)
 
+# The real, currently-supported tiers for Qwen Code's `model.reasoningEffort`
+# settings.json field, confirmed against the installed @qwen-code/qwen-code
+# CLI's own compiled REASONING_EFFORT_TIERS constant -- not guessed.
+REASONING_EFFORT_TIERS = ("low", "medium", "high", "xhigh", "max")
+
 
 def _expand_env(value: Any) -> Any:
     if isinstance(value, str):
@@ -254,6 +260,18 @@ def load_config(path: str | Path) -> SupervisorConfig:
     binary = q.get("binary", "qwen")
     if not isinstance(binary, str) or not binary.strip():
         raise ConfigError("qwen.binary must be non-empty text")
+    reasoning_effort_raw = q.get("reasoningEffort")
+    reasoning_effort: str | None = None
+    if reasoning_effort_raw is not None:
+        if (
+            not isinstance(reasoning_effort_raw, str)
+            or reasoning_effort_raw not in REASONING_EFFORT_TIERS
+        ):
+            raise ConfigError(
+                "qwen.reasoningEffort must be one of: "
+                + ", ".join(REASONING_EFFORT_TIERS)
+            )
+        reasoning_effort = reasoning_effort_raw
     qwen = QwenConfig(
         binary=binary,
         model=str(q.get("model", "qwen3.8-max")),
@@ -269,6 +287,7 @@ def load_config(path: str | Path) -> SupervisorConfig:
         use_system_certificate_store=_boolean(
             q.get("useSystemCertificateStore", False), "qwen.useSystemCertificateStore"
         ),
+        reasoning_effort=reasoning_effort,
         exclude_tools=_string_list(q.get("excludeTools", []), "qwen.excludeTools"),
         environment_allowlist=_string_list(
             q.get("environmentAllowlist", list(QwenConfig().environment_allowlist)),

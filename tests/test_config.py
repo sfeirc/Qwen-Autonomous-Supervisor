@@ -100,3 +100,37 @@ storage:
     assert config.budgets.max_cost_per_day == 2
     assert config.storage.minimum_free_bytes == 1024
     assert config.storage.maximum_artifacts == 7
+
+
+def test_reasoning_effort_defaults_to_unset(tmp_path: Path, git_project: Path) -> None:
+    config = load_config(write_config(tmp_path, git_project))
+    assert config.qwen.reasoning_effort is None
+
+
+@pytest.mark.parametrize("tier", ["low", "medium", "high", "xhigh", "max"])
+def test_reasoning_effort_accepts_real_tiers(
+    tmp_path: Path, git_project: Path, tier: str
+) -> None:
+    path = write_config(tmp_path, git_project)
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "  maxSessionTurns: 5",
+            f"  maxSessionTurns: 5\n  reasoningEffort: {tier}",
+        ),
+        encoding="utf-8",
+    )
+    config = load_config(path)
+    assert config.qwen.reasoning_effort == tier
+
+
+def test_reasoning_effort_rejects_invalid_tier(tmp_path: Path, git_project: Path) -> None:
+    path = write_config(tmp_path, git_project)
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "  maxSessionTurns: 5",
+            "  maxSessionTurns: 5\n  reasoningEffort: bogus",
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ConfigError, match="reasoningEffort"):
+        load_config(path)

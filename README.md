@@ -191,6 +191,31 @@ coordinator result and complete Git diff as untrusted data and cannot reuse the
 implementation context. The mutating coordinator still requires the configured
 external sandbox.
 
+### Reasoning effort
+
+`qwen.reasoningEffort` (`low` / `medium` / `high` / `xhigh` / `max`) is optional
+and, when set, is written into the target project's `.qwen/settings.json` as
+`model.reasoningEffort` before every coordinator tick — the real, currently
+supported mechanism for this setting in Qwen Code (there is no CLI flag or
+environment variable for it; this was confirmed against the installed
+`@qwen-code/qwen-code` CLI's own compiled source, not assumed). The write is a
+non-destructive merge (existing settings survive) and the field is entirely
+unset by default, so existing configurations see zero behavior change.
+
+Qwen's own announcement for Qwen3.8-Max (August 2026) also describes a
+`preserve_thinking` parameter alongside `reasoning_effort`. That one is **not**
+offered here: it does not exist anywhere in the installed Qwen Code CLI
+(confirmed by searching the entire installed package for the string — it
+appears to be specific to Qwen's own cloud chat-completions API, not the coding
+-agent CLI this project drives), so adding a config option for it would either
+silently do nothing or break invocations. This project's own architecture
+(atomic per-run lease acquisition, quality gates plus an independent read-only
+reviewer, and `qas campaign`'s chaos-tested long-horizon runs tracking issues
+completed, PRs merged, tokens, and cost) independently mirrors the operational
+concepts that announcement describes for its own internal long-horizon coding
+harness — noted here as a factual parallel, not a claim that this project is
+Qwen3.8-Max or reproduces its benchmark results.
+
 ## Durable state
 
 `runtime/state.db` uses SQLite WAL mode. The important records are:

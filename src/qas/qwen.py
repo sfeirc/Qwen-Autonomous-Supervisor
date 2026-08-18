@@ -103,9 +103,42 @@ class QwenLauncher:
             args.extend(["--exclude-tools", ",".join(self.config.qwen.exclude_tools)])
         return args
 
+    def _ensure_reasoning_effort_settings(self) -> None:
+        """Merge `qwen.reasoningEffort` (if configured) into the target
+        project's `.qwen/settings.json` as `model.reasoningEffort` -- the
+        real, currently-supported mechanism for this Qwen Code setting
+        (confirmed against the installed CLI; there is no CLI flag or env
+        var for it). No-ops entirely when unset, so existing configs see
+        zero behavior change. Never clobbers unrelated existing settings:
+        reads-merges-writes, atomically (temp file + os.replace).
+        """
+        effort = self.config.qwen.reasoning_effort
+        if not effort:
+            return
+        settings_dir = self.config.project_root / ".qwen"
+        settings_path = settings_dir / "settings.json"
+        settings_dir.mkdir(parents=True, exist_ok=True)
+        data: dict[str, Any] = {}
+        if settings_path.is_file():
+            try:
+                loaded = json.loads(settings_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    data = loaded
+            except json.JSONDecodeError:
+                data = {}
+        model_section = data.get("model")
+        if not isinstance(model_section, dict):
+            model_section = {}
+        model_section["reasoningEffort"] = effort
+        data["model"] = model_section
+        tmp_path = settings_path.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+        tmp_path.replace(settings_path)
+
     def run_coordinator(self, run_id: str, tick_id: str, output_path: Path) -> ProcessResult:
         if not self.available():
             raise QwenUnavailable(f"Qwen Code binary not found: {self.config.qwen.binary}")
+        self._ensure_reasoning_effort_settings()
         system = self._resource("agents/coordinator.md").read_text(encoding="utf-8")
         schema = self._resource("schemas/coordinator-result.schema.json")
         snapshot = self.ledger.status()

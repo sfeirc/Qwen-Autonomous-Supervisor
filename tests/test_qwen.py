@@ -71,6 +71,80 @@ def test_reviewer_is_fresh_and_read_only(
     assert "UNTRUSTED DIFF" in captured["stdin_text"]
 
 
+def test_reasoning_effort_writes_qwen_settings_json(
+    tmp_path: Path, git_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_config(tmp_path, git_project, binary=sys.executable)
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "  maxSessionTurns: 5",
+            "  maxSessionTurns: 5\n  reasoningEffort: xhigh",
+        ),
+        encoding="utf-8",
+    )
+    config = load_config(path)
+    launcher = QwenLauncher(config, Ledger(config.runtime_dir / "state.db"), Path(__file__).parents[1])
+
+    def fake_run(argv: list[str], **kwargs: Any) -> ProcessResult:
+        return result({"state": "idle"})
+
+    monkeypatch.setattr("qas.qwen.run_process", fake_run)
+    launcher.run_coordinator("run", "tick", tmp_path / "out.jsonl")
+
+    settings_path = git_project / ".qwen" / "settings.json"
+    assert settings_path.is_file()
+    assert json.loads(settings_path.read_text(encoding="utf-8")) == {
+        "model": {"reasoningEffort": "xhigh"}
+    }
+
+
+def test_reasoning_effort_merges_without_clobbering_existing_settings(
+    tmp_path: Path, git_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = write_config(tmp_path, git_project, binary=sys.executable)
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(
+            "  maxSessionTurns: 5",
+            "  maxSessionTurns: 5\n  reasoningEffort: low",
+        ),
+        encoding="utf-8",
+    )
+    settings_dir = git_project / ".qwen"
+    settings_dir.mkdir(parents=True, exist_ok=True)
+    (settings_dir / "settings.json").write_text(
+        json.dumps({"other": True, "model": {"someOtherField": 1}}), encoding="utf-8"
+    )
+    config = load_config(path)
+    launcher = QwenLauncher(config, Ledger(config.runtime_dir / "state.db"), Path(__file__).parents[1])
+
+    def fake_run(argv: list[str], **kwargs: Any) -> ProcessResult:
+        return result({"state": "idle"})
+
+    monkeypatch.setattr("qas.qwen.run_process", fake_run)
+    launcher.run_coordinator("run", "tick", tmp_path / "out.jsonl")
+
+    written = json.loads((settings_dir / "settings.json").read_text(encoding="utf-8"))
+    assert written["other"] is True
+    assert written["model"]["someOtherField"] == 1
+    assert written["model"]["reasoningEffort"] == "low"
+
+
+def test_reasoning_effort_unset_writes_no_settings_file(
+    tmp_path: Path, git_project: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    config = load_config(write_config(tmp_path, git_project, binary=sys.executable))
+    assert config.qwen.reasoning_effort is None
+    launcher = QwenLauncher(config, Ledger(config.runtime_dir / "state.db"), Path(__file__).parents[1])
+
+    def fake_run(argv: list[str], **kwargs: Any) -> ProcessResult:
+        return result({"state": "idle"})
+
+    monkeypatch.setattr("qas.qwen.run_process", fake_run)
+    launcher.run_coordinator("run", "tick", tmp_path / "out.jsonl")
+
+    assert not (git_project / ".qwen" / "settings.json").exists()
+
+
 def test_validated_output_supports_last_json_line() -> None:
     payload = {"state": "idle", "action": "wait"}
     parsed = QwenLauncher.validated_output(
