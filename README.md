@@ -278,6 +278,40 @@ On native Windows, use `deploy/windows/install-task.ps1` to install a
 restart-on-boot Task Scheduler job. Docker/WSL2 or a Linux VM remains preferable
 for multi-day production campaigns. `systemd` applies only to Linux.
 
+## Long-running jobs (training runs, or anything else that outlives a tick)
+
+A coordinator tick is bounded (`maxWallTime`/`maxToolCalls`/`maxSessionTurns`),
+and the coordinator's own Qwen process ends at the tick boundary. There was
+previously no way to start something that genuinely needs hours — a model
+training run, a long data pipeline — without either blocking a tick on it or
+losing track of it once the tick ends. `qas job` makes such a job durable,
+independent of any one `qas` process staying alive:
+
+```bash
+qas --config supervisor.yml job start --name train-v2 --command "python3 train.py --config foo.yml" --max-duration 8h
+qas --config supervisor.yml job status train-v2
+qas --config supervisor.yml job list
+```
+
+The job is launched detached (its own process group/session) and self-reports
+its real exit code to a file as its last action — once `qas job start` returns,
+the job's parent becomes PID 1, so a later `qas job status` call cannot
+`waitpid()` it to learn how it finished; the exit-code file is what makes that
+outcome durable. A job exceeding its own declared `--max-duration` is killed
+and reported `expired`, not left to run forever. `jobs.maxConcurrent` (default
+2) bounds how many can run at once. `qas status` and the coordinator's own
+runtime snapshot (`running_jobs`) surface currently-running jobs so the model
+can check on one from a later tick instead of blocking the current one.
+
+**Honest scope**: this is generic long-running-job infrastructure, not GPU- or
+ML-specific code, and it has not been exercised against real GPU training —
+this project's development environment has no GPU at all. It adds no ML
+research capability (forming a hypothesis, evaluating a benchmark score,
+deciding what to try next) — that would depend entirely on the model itself,
+same as everything else this project supervises. It only removes the "a tick
+can't outlive its own bounded wall-time" ceiling that would otherwise make any
+long job, training or not, impossible to track at all.
+
 ## What remains external by design
 
 The supervisor cannot create the trust boundary by itself. Production rollout

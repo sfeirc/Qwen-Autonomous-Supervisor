@@ -35,3 +35,13 @@ After a merge, targeted dogfood is mandatory. When no human Issue remains, run
 due global dogfood. A reproduced minimal finding becomes a normalized
 `source:self-discovery` Issue and is delivered only in a later tick, never as an
 inline fix during discovery.
+
+If the work an Issue requires (e.g. a model training run, or any command that
+genuinely needs hours) cannot fit in this tick's own bounded time, do not
+block the tick waiting for it. Launch it as a durable background job with
+`qas job start --name <issue-scoped-name> --command "<command>" --max-duration
+<duration>` via your shell tool, record its name in the Issue, and end this
+tick normally. Check `qas job status <name>` (or the runtime snapshot's
+`running_jobs`) on this or a later tick to learn whether it is still running,
+succeeded, failed, or expired (killed for exceeding its own declared
+duration) before continuing that Issue's work.

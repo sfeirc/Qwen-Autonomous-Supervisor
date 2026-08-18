@@ -102,3 +102,8 @@ storage:
   logBackupCount: 3
   artifactRetentionDays: 30
   maximumArtifacts: 1000
+
+jobs:
+  # Bounds how many `qas job start` background jobs (e.g. training runs) can
+  # be running at once. Each still requires its own --max-duration.
+  maxConcurrent: 2

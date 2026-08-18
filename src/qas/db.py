@@ -82,6 +82,25 @@ CREATE TABLE IF NOT EXISTS operations (
     request TEXT NOT NULL CHECK(json_valid(request)),
     evidence TEXT CHECK(evidence IS NULL OR json_valid(evidence))
 );
+
+CREATE TABLE IF NOT EXISTS jobs (
+    job_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    command TEXT NOT NULL CHECK(json_valid(command)),
+    cwd TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('running','succeeded','failed','expired')),
+    pid INTEGER NOT NULL,
+    started_at TEXT NOT NULL,
+    started_epoch REAL NOT NULL,
+    finished_at TEXT,
+    exit_code INTEGER,
+    max_duration_seconds INTEGER NOT NULL,
+    log_path TEXT NOT NULL,
+    exit_code_path TEXT NOT NULL,
+    results_path TEXT
+);
+
+CREATE INDEX IF NOT EXISTS jobs_name_idx ON jobs(name);
 """
 
 
@@ -293,6 +312,94 @@ class Ledger:
             )
             connection.execute("COMMIT")
         return count, quarantined
+
+    def start_job(
+        self,
+        *,
+        job_id: str,
+        name: str,
+        command: str,
+        cwd: str,
+        pid: int,
+        started_epoch: float,
+        max_duration_seconds: int,
+        log_path: str,
+        exit_code_path: str,
+        results_path: str | None,
+    ) -> None:
+        with self.connect() as connection:
+            connection.execute(
+                """INSERT INTO jobs(
+                job_id,name,command,cwd,status,pid,started_at,started_epoch,
+                max_duration_seconds,log_path,exit_code_path,results_path
+                ) VALUES(?,?,?,?,'running',?,?,?,?,?,?,?)""",
+                (
+                    job_id,
+                    name,
+                    canonical_json(command),
+                    cwd,
+                    pid,
+                    utc_now(),
+                    started_epoch,
+                    max_duration_seconds,
+                    log_path,
+                    exit_code_path,
+                    results_path,
+                ),
+            )
+
+    def get_job(self, job_id_or_name: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM jobs WHERE job_id=? ORDER BY started_at DESC LIMIT 1",
+                (job_id_or_name,),
+            ).fetchone()
+            if row is None:
+                row = connection.execute(
+                    "SELECT * FROM jobs WHERE name=? ORDER BY started_at DESC LIMIT 1",
+                    (job_id_or_name,),
+                ).fetchone()
+        return dict(row) if row else None
+
+    def get_running_job_by_name(self, name: str) -> dict[str, Any] | None:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM jobs WHERE name=? AND status='running' ORDER BY started_at DESC LIMIT 1",
+                (name,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def count_running_jobs(self) -> int:
+        with self.connect() as connection:
+            row = connection.execute(
+                "SELECT COUNT(*) AS count FROM jobs WHERE status='running'"
+            ).fetchone()
+        return int(row["count"]) if row else 0
+
+    def finish_job(self, job_id: str, status: str, exit_code: int | None) -> None:
+        if status not in {"succeeded", "failed", "expired"}:
+            raise ValueError(f"invalid terminal job status: {status}")
+        with self.connect() as connection:
+            connection.execute(
+                """UPDATE jobs SET status=?,exit_code=?,finished_at=?
+                WHERE job_id=? AND status='running'""",
+                (status, exit_code, utc_now(), job_id),
+            )
+
+    def list_jobs(self, limit: int = 50) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM jobs ORDER BY started_at DESC LIMIT ?",
+                (max(1, min(limit, 1000)),),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def running_jobs(self) -> list[dict[str, Any]]:
+        with self.connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM jobs WHERE status='running' ORDER BY started_at DESC"
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def set_checkpoint(self, key: str, value: Any) -> None:
         with self.connect() as connection:

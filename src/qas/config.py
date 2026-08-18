@@ -129,6 +129,11 @@ class StorageConfig:
 
 
 @dataclass(frozen=True)
+class JobsConfig:
+    max_concurrent: int = 2
+
+
+@dataclass(frozen=True)
 class SupervisorConfig:
     config_path: Path
     project_root: Path
@@ -143,6 +148,7 @@ class SupervisorConfig:
     observability: ObservabilityConfig = field(default_factory=ObservabilityConfig)
     budgets: BudgetConfig = field(default_factory=BudgetConfig)
     storage: StorageConfig = field(default_factory=StorageConfig)
+    jobs: JobsConfig = field(default_factory=JobsConfig)
 
 
 _ENV = re.compile(r"\$\{([A-Z_][A-Z0-9_]*)(?::-([^}]*))?\}")
@@ -447,6 +453,11 @@ def load_config(path: str | Path) -> SupervisorConfig:
         ),
     )
 
+    j = _mapping(data.get("jobs"), "jobs")
+    jobs = JobsConfig(
+        max_concurrent=int(_positive(j.get("maxConcurrent", 2), "jobs.maxConcurrent")),
+    )
+
     return SupervisorConfig(
         config_path=config_path,
         project_root=project_root,
@@ -461,4 +472,5 @@ def load_config(path: str | Path) -> SupervisorConfig:
         observability=observability,
         budgets=budgets,
         storage=storage,
+        jobs=jobs,
     )

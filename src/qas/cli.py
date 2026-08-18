@@ -16,6 +16,7 @@ from qas.db import LedgerIntegrityError
 from qas.dogfood import run_scenario
 from qas.governance_audit import audit_governance
 from qas.httpd import serve
+from qas.jobs import JobError, list_jobs, poll_job, start_job
 from qas.process import duration_seconds
 from qas.runtime import AlreadyRunning, Supervisor
 
@@ -56,6 +57,23 @@ def _parser() -> argparse.ArgumentParser:
     campaign.add_argument("--minimum-successful-ticks", type=int, default=1)
     dogfood = sub.add_parser("dogfood", help="run one deterministic dogfood scenario")
     dogfood.add_argument("scenario")
+
+    job = sub.add_parser("job", help="manage durable long-running jobs (e.g. training runs)")
+    job_sub = job.add_subparsers(dest="job_command", required=True)
+    job_start = job_sub.add_parser("start", help="launch a detached long-running job")
+    job_start.add_argument("--name", required=True)
+    job_start.add_argument(
+        "--command",
+        dest="job_shell_command",
+        required=True,
+        help='shell command, e.g. "python3 train.py"',
+    )
+    job_start.add_argument("--max-duration", required=True, help="e.g. 90m, 4h, 30s")
+    job_start.add_argument("--results", default=None, help="path the job writes results to")
+    job_status = job_sub.add_parser("status", help="poll a job by name or id")
+    job_status.add_argument("job")
+    job_sub.add_parser("list", help="list known jobs")
+
     return parser
 
 
@@ -185,7 +203,28 @@ def main(argv: list[str] | None = None) -> int:
             scenario_result = run_scenario(scenario, config.project_root)
             _json(scenario_result.__dict__)
             return 0 if scenario_result.passed else 1
-    except (ConfigError, LedgerIntegrityError, AlreadyRunning, ValueError, OSError) as exc:
+        if args.command == "job":
+            jobs_dir = config.runtime_dir / "jobs"
+            if args.job_command == "start":
+                job_id = start_job(
+                    supervisor.ledger,
+                    jobs_dir,
+                    name=args.name,
+                    command=args.job_shell_command,
+                    cwd=config.project_root,
+                    max_duration_seconds=int(duration_seconds(args.max_duration)),
+                    max_concurrent=config.jobs.max_concurrent,
+                    results_path=args.results,
+                )
+                _json(supervisor.ledger.get_job(job_id))
+                return 0
+            if args.job_command == "status":
+                _json(poll_job(supervisor.ledger, args.job))
+                return 0
+            if args.job_command == "list":
+                _json(list_jobs(supervisor.ledger))
+                return 0
+    except (ConfigError, LedgerIntegrityError, AlreadyRunning, ValueError, OSError, JobError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 2

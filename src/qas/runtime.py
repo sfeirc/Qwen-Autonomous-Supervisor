@@ -763,9 +763,20 @@ class Supervisor:
                     0.0, campaign_checkpoint["deadline_epoch"] - time.time()
                 ),
             }
+        running_jobs = [
+            {
+                "job_id": job["job_id"],
+                "name": job["name"],
+                "started_at": job["started_at"],
+                "elapsed_seconds": max(0.0, time.time() - float(job["started_epoch"])),
+                "max_duration_seconds": job["max_duration_seconds"],
+            }
+            for job in self.ledger.running_jobs()
+        ]
         status.update(
             {
                 "active_campaign": active_campaign,
+                "running_jobs": running_jobs,
                 "current_state": (
                     status["latest_state"].get("state") if status["latest_state"] else None
                 ),
