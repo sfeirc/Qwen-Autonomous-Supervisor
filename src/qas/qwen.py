@@ -140,7 +140,9 @@ class QwenLauncher:
             raise QwenUnavailable(f"Qwen Code binary not found: {self.config.qwen.binary}")
         self._ensure_reasoning_effort_settings()
         system = self._resource("agents/coordinator.md").read_text(encoding="utf-8")
-        schema = self._resource("schemas/coordinator-result.schema.json")
+        schema = self._resource("schemas/coordinator-result.schema.json").read_text(
+            encoding="utf-8"
+        )
         snapshot = self.ledger.status()
         prompt = (
             self._argument_text(system)
@@ -154,7 +156,13 @@ class QwenLauncher:
             self.config.qwen.max_wall_time,
             self.config.qwen.max_tool_calls,
         )
-        args.extend(["--json-schema", f"@{schema}"])
+        # Passed inline (not `@<path>`) deliberately: `--json-schema @<path>`
+        # requires that path to exist inside the Qwen Code process's own
+        # filesystem view, which breaks under qwen.sandbox=true (a Docker
+        # container mounting only the target project, not this package's own
+        # install location where the schema file lives). Inline JSON has no
+        # such dependency, sandboxed or not.
+        args.extend(["--json-schema", schema])
         return self._run(
             args,
             run_id,
@@ -176,7 +184,7 @@ class QwenLauncher:
         if not self.available():
             raise QwenUnavailable(f"Qwen Code binary not found: {self.config.qwen.binary}")
         system = self._resource("agents/reviewer.md").read_text(encoding="utf-8")
-        schema = self._resource("schemas/review-result.schema.json")
+        schema = self._resource("schemas/review-result.schema.json").read_text(encoding="utf-8")
         prompt = (
             self._argument_text(system)
             + " Review only the bounded data supplied on stdin. Do not call inspection "
@@ -194,12 +202,7 @@ class QwenLauncher:
             sandbox=False,
             safe_mode=True,
         )
-        args.extend(
-            [
-                "--json-schema",
-                f"@{schema}",
-            ]
-        )
+        args.extend(["--json-schema", schema])
         return self._run(
             args,
             run_id,
