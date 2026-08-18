@@ -10,7 +10,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from qas.models import utc_now
+from qas.models import ACTIVE_CAMPAIGN_CHECKPOINT_KEY, utc_now
 from qas.runtime import Supervisor
 
 
@@ -71,6 +71,23 @@ def kill_active_agent(supervisor: Supervisor, *, reason: str = "manual chaos") -
     return pid
 
 
+def active_campaign(supervisor: Supervisor) -> dict[str, Any] | None:
+    """Return the durable state of an unfinished campaign, if one exists and
+    its original deadline hasn't already passed -- ``None`` otherwise. This
+    is what makes a campaign resumable across a full process restart (host
+    reboot, OOM kill, crash): the checkpoint survives in the SQLite ledger
+    even though everything else about a `run_campaign()` call is local
+    Python state that dies with the process.
+    """
+    state = supervisor.ledger.get_checkpoint(ACTIVE_CAMPAIGN_CHECKPOINT_KEY)
+    if not isinstance(state, dict):
+        return None
+    deadline = state.get("deadline_epoch")
+    if not isinstance(deadline, (int, float)) or deadline <= time.time():
+        return None
+    return state
+
+
 def run_campaign(
     supervisor: Supervisor,
     *,
@@ -82,50 +99,87 @@ def run_campaign(
         raise ValueError("campaign duration must be positive")
     if chaos_every_seconds is not None and chaos_every_seconds <= 0:
         raise ValueError("chaos interval must be positive")
-    campaign_id = str(uuid.uuid4())
-    started_at = utc_now()
-    started = time.monotonic()
-    before = supervisor.ledger.status()["event_counts"]
+
+    now = time.time()
+    resumed_state = active_campaign(supervisor)
+    if resumed_state is not None:
+        # Resume the SAME campaign a prior process (now dead) started:
+        # identical campaign_id and original event-count baseline, so the
+        # metrics reported at the end genuinely span the full requested
+        # wall-clock duration, not just however long this particular process
+        # happened to stay up.
+        campaign_id = str(resumed_state["campaign_id"])
+        started_at = str(resumed_state["started_at"])
+        started_epoch = float(resumed_state["started_epoch"])
+        before = dict(resumed_state["before"])
+        chaos_every_seconds = resumed_state.get("chaos_every_seconds", chaos_every_seconds)
+        minimum_successful_ticks = int(
+            resumed_state.get("minimum_successful_ticks", minimum_successful_ticks)
+        )
+        remaining_seconds = max(0.0, float(resumed_state["deadline_epoch"]) - now)
+        resumed = True
+    else:
+        campaign_id = str(uuid.uuid4())
+        started_at = utc_now()
+        started_epoch = now
+        before = supervisor.ledger.status()["event_counts"]
+        remaining_seconds = duration_seconds
+        supervisor.ledger.set_checkpoint(
+            ACTIVE_CAMPAIGN_CHECKPOINT_KEY,
+            {
+                "campaign_id": campaign_id,
+                "started_at": started_at,
+                "started_epoch": started_epoch,
+                "deadline_epoch": now + duration_seconds,
+                "before": before,
+                "chaos_every_seconds": chaos_every_seconds,
+                "minimum_successful_ticks": minimum_successful_ticks,
+            },
+        )
+        resumed = False
+
     stop = threading.Event()
-    chaos_kills = 0
 
     def chaos_worker() -> None:
-        nonlocal chaos_kills
         if chaos_every_seconds is None:
             return
         while not stop.wait(chaos_every_seconds):
-            pid = kill_active_agent(supervisor, reason=f"campaign:{campaign_id}")
-            if pid is not None:
-                chaos_kills += 1
+            kill_active_agent(supervisor, reason=f"campaign:{campaign_id}")
 
     chaos_thread: threading.Thread | None = None
-    if chaos_every_seconds is not None:
+    if chaos_every_seconds is not None and remaining_seconds > 0:
         chaos_thread = threading.Thread(target=chaos_worker, daemon=True)
         chaos_thread.start()
 
     def deadline_worker() -> None:
-        if not stop.wait(duration_seconds):
+        if not stop.wait(remaining_seconds):
             kill_active_agent(supervisor, reason=f"campaign-deadline:{campaign_id}")
             supervisor.request_stop()
 
-    deadline_thread = threading.Thread(target=deadline_worker, daemon=True)
-    deadline_thread.start()
+    deadline_thread: threading.Thread | None = None
+    if remaining_seconds > 0:
+        deadline_thread = threading.Thread(target=deadline_worker, daemon=True)
+        deadline_thread.start()
+
     supervisor.ledger.append_event(
-        "campaign_started",
-        operation_key=f"campaign:start:{campaign_id}",
+        "campaign_resumed" if resumed else "campaign_started",
+        operation_key=f"campaign:{'resume' if resumed else 'start'}:{campaign_id}:{now}",
         payload={
             "campaign_id": campaign_id,
             "duration_seconds": duration_seconds,
+            "remaining_seconds": remaining_seconds,
             "chaos_every_seconds": chaos_every_seconds,
         },
     )
     try:
-        supervisor.loop(max_seconds=duration_seconds)
+        if remaining_seconds > 0:
+            supervisor.loop(max_seconds=remaining_seconds)
     finally:
         stop.set()
         if chaos_thread:
             chaos_thread.join(timeout=5)
-        deadline_thread.join(timeout=5)
+        if deadline_thread:
+            deadline_thread.join(timeout=5)
 
     after_status = supervisor.status()
     after = after_status["event_counts"]
@@ -147,8 +201,8 @@ def run_campaign(
         campaign_id=campaign_id,
         started_at=started_at,
         finished_at=utc_now(),
-        duration_seconds=time.monotonic() - started,
-        chaos_kills=chaos_kills,
+        duration_seconds=time.time() - started_epoch,
+        chaos_kills=delta("chaos_process_killed"),
         successful_ticks=successful,
         failed_ticks=failed,
         reconciled_operations=delta("operation_reconciled"),
@@ -169,6 +223,7 @@ def run_campaign(
         report_path=str(report_path),
     )
     report_path.write_text(json.dumps(asdict(result), indent=2), encoding="utf-8")
+    supervisor.ledger.set_checkpoint(ACTIVE_CAMPAIGN_CHECKPOINT_KEY, None)
     supervisor.ledger.append_event(
         "campaign_finished",
         operation_key=f"campaign:finish:{campaign_id}",

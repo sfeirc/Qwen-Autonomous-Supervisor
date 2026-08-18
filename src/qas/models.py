@@ -12,6 +12,13 @@ def utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds")
 
 
+# Shared checkpoint key for durable, restart-resumable campaign state (see
+# qas.campaign.run_campaign / active_campaign). Defined here, not in
+# qas.campaign, so qas.runtime's status() can read it without importing
+# qas.campaign (which itself imports Supervisor from qas.runtime).
+ACTIVE_CAMPAIGN_CHECKPOINT_KEY = "active_campaign"
+
+
 def canonical_json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
 

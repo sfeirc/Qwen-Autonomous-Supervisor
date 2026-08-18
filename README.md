@@ -152,6 +152,21 @@ qas --config supervisor.yml campaign --duration 12h --chaos-every 45m
 See [docs/VALIDATION_CAMPAIGN.md](docs/VALIDATION_CAMPAIGN.md) for the disposable
 GitHub fixture, reboot drill and the 15-minute → 16-day validation ladder.
 
+A campaign's identity, deadline and starting metrics baseline are checkpointed
+in the durable ledger (not just held in the running process's memory), so the
+reboot drill in step 5 of that ladder covers the campaign wrapper itself, not
+only the underlying tick/lease state: if the `qas` process is killed outright
+(host reboot, OOM, an unhandled exception) partway through a long campaign,
+restarting the same `campaign --duration ...` command resumes the *same*
+campaign -- same id, same original baseline, only the remaining time -- so the
+final report still covers the full requested wall-clock span instead of
+silently resetting. [scripts/run_long_campaign.sh](scripts/run_long_campaign.sh)
+wraps this in a restart-on-crash loop for unattended multi-hour/multi-day runs:
+
+```bash
+scripts/run_long_campaign.sh 24h 30m 5   # duration, chaos-every, minimum-successful-ticks
+```
+
 Expose local health and metrics:
 
 ```bash

@@ -18,7 +18,7 @@ from typing import Any
 
 from qas.config import SupervisorConfig
 from qas.db import Ledger
-from qas.models import TickOutcome, canonical_json, fingerprint
+from qas.models import ACTIVE_CAMPAIGN_CHECKPOINT_KEY, TickOutcome, canonical_json, fingerprint
 from qas.policy import (
     PolicyViolation,
     assert_governance,
@@ -748,8 +748,24 @@ class Supervisor:
             ),
         }
         counts = status["event_counts"]
+        campaign_checkpoint = self.ledger.get_checkpoint(ACTIVE_CAMPAIGN_CHECKPOINT_KEY)
+        active_campaign = None
+        if (
+            isinstance(campaign_checkpoint, dict)
+            and isinstance(campaign_checkpoint.get("deadline_epoch"), (int, float))
+            and campaign_checkpoint["deadline_epoch"] > time.time()
+        ):
+            active_campaign = {
+                "campaign_id": campaign_checkpoint.get("campaign_id"),
+                "started_at": campaign_checkpoint.get("started_at"),
+                "deadline_epoch": campaign_checkpoint["deadline_epoch"],
+                "remaining_seconds": max(
+                    0.0, campaign_checkpoint["deadline_epoch"] - time.time()
+                ),
+            }
         status.update(
             {
+                "active_campaign": active_campaign,
                 "current_state": (
                     status["latest_state"].get("state") if status["latest_state"] else None
                 ),
